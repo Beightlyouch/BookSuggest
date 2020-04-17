@@ -13,7 +13,9 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.preference.PreferenceManager;
+import android.text.util.Linkify;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -45,14 +47,14 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences prefs;
     private SharedPreferences.Editor editor;
 
-    //ボタン
+    //ボタンなど
     Button button;
-    Button button2;
-
     TextView titleView;
     TextView dateView;
+    TextView publisherView;
     TextView descriptionView;
     TextView authorView;
+    TextView urlView;
     ImageView imageView;
 
     //API
@@ -67,11 +69,12 @@ public class MainActivity extends AppCompatActivity {
         editor = prefs.edit();
 
         button = findViewById(R.id.button);
-        button2 = findViewById(R.id.button2);
         titleView = findViewById(R.id.titleView);
         dateView = findViewById(R.id.dateView);
+        publisherView = findViewById(R.id.publisherView);
         descriptionView = findViewById(R.id.descriptionView);
         authorView = findViewById(R.id.authorView);
+        urlView = findViewById(R.id.urlView);
         imageView = findViewById(R.id.imageView);
 
         button.setOnClickListener(new View.OnClickListener() {
@@ -132,12 +135,20 @@ public class MainActivity extends AppCompatActivity {
                             String items = json.getString("items");
                             JSONArray itemsArray = new JSONArray(items);
                             JSONObject bookInfo = itemsArray.getJSONObject(3).getJSONObject("volumeInfo");
-                            Log.d("number", String.valueOf(itemsArray.length()));
-                            Log.d("numb", String.valueOf(bookInfo));
+                            JSONObject saleInfo = itemsArray.getJSONObject(3).getJSONObject("saleInfo");
 
+                            //題名
                             String title = bookInfo.getString("title");
+                            //オプション属性: optStringで取得
+                            //出版日
                             String publishedDate = bookInfo.optString("publishedDate");
+                            //出版社
+                            String publisher = bookInfo.optString("publisher");
+                            //説明文
                             String description = bookInfo.optString("description");
+                            //価格
+                            String price = bookInfo.optString("");
+                            //（代表）著者
                             String authorArrayText = bookInfo.optString("authors");
                             String author = "";
                             if(authorArrayText != "") {
@@ -145,13 +156,24 @@ public class MainActivity extends AppCompatActivity {
                                 String.valueOf(authorArray.get(0));
                             }
                             // サーバからURL文字列を取得し、URLに変換
-                            String image_URL = bookInfo.getJSONObject("imageLinks").optString("smallThumbnail");
-                            setImage(image_URL);
+                            if(bookInfo.optJSONObject("imageLinks")!= null) {
+                                String image_URL = bookInfo.optJSONObject("imageLinks").optString("thumbnail");
+                                setImage(image_URL);
+                            }
 
-                            titleView.setText(title);
-                            dateView.setText(publishedDate);
-                            authorView.setText(author);
-                            descriptionView.setText(description);
+                            //google Books URL
+                            String google_URL = saleInfo.optString("buyLink");
+                            urlView.setAutoLinkMask(Linkify.WEB_URLS);
+
+                            //SharedPreference
+                            editor.putString("title", title);
+                            editor.putString("publishedDate", publishedDate);
+                            editor.putString("publisher", publisher);
+                            editor.putString("author", author);
+                            editor.putString("description", description);
+                            editor.putString("google_URL", google_URL);
+                            editor.commit();
+
 
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -159,18 +181,11 @@ public class MainActivity extends AppCompatActivity {
 
                     }
                 }.execute();
-            }
-        });
 
-        button2.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Calendar cl = Calendar.getInstance();
-                long now = cl.getTimeInMillis();
-                Log.d("NOW", String.valueOf(now));
-                Log.d("PUSH", String.valueOf(prefs.getLong("push", 0)));
-                Log.d("MINUS", String.valueOf(now - prefs.getLong("push", 0L)));
-                canPushButton();
+                Calendar cal = Calendar.getInstance();
+                long now = cal.getTimeInMillis();
+                long long_time = now - prefs.getLong("push", 0L);
+
             }
         });
     }
@@ -210,14 +225,41 @@ public class MainActivity extends AppCompatActivity {
         long now = cl.getTimeInMillis();
         int push = (int)prefs.getLong("push", 0L);
         long long_time = now - prefs.getLong("push", 0L);
-        int time = (int)long_time;
-        Log.d("MINUS", String.valueOf(time));
-        if(push == 0 || time >=  60 * 1000) {
-            button.setVisibility(View.VISIBLE);
-        } else {
-            button.setVisibility(View.INVISIBLE);
-        }
+
+        new CountDownTimer(60 * 1000 - long_time, 1000) {
+
+            public void onTick(long millisUntilFinished) {
+                long secondInFuture = millisUntilFinished / 1000;
+                long hour = (secondInFuture / 3600);
+                long minute = (secondInFuture - 3600 * hour) / 60;
+                long second = secondInFuture - 3600 * hour - 60 * minute;
+                button.setText(String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second));
+                button.setEnabled(false);
+            }
+
+            public void onFinish() {
+                button.setText("done!");
+                button.setEnabled(true);
+            }
+        }.start();
     }
+
+    public void setInfo() {
+        String title = prefs.getString("title", "タイトル");
+        String publishedDate = prefs.getString("publishedDate", "出版年月日");
+        String publisher = prefs.getString("publisher", "出版社");
+        String author = prefs.getString("author", "著者");
+        String description = prefs.getString("description", "本の紹介文が表示されます。※紹介文がないため表示されない場合もあります。");
+        String google_URL = prefs.getString("google_URL", "");
+
+        titleView.setText(title);
+        dateView.setText(publishedDate);
+        publisherView.setText(publisher);
+        authorView.setText(author);
+        descriptionView.setText(description);
+        urlView.setText(google_URL);
+    }
+
 
     public void setImage(String image_URL) {
         Picasso.get().
