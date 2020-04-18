@@ -1,6 +1,7 @@
 package com.beightlyouch.booksuggest;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.res.ResourcesCompat;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -10,6 +11,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -17,9 +19,14 @@ import android.os.CountDownTimer;
 import android.preference.PreferenceManager;
 import android.text.util.Linkify;
 import android.util.Log;
+import android.view.Display;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.squareup.picasso.Picasso;
@@ -56,14 +63,20 @@ public class MainActivity extends AppCompatActivity {
     TextView authorView;
     TextView urlView;
     ImageView imageView;
+    ScrollView scrollView;
+    LinearLayout infoView;
+    LinearLayout totalLayout;
+    LinearLayout buttonLayout;
 
     //API
     private final String API_URL_PREFIX = "www.googleapis.com";
 
     @Override
+    //クラス分けろ
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setTitle("新しい本と出会いましょう");
 
         prefs =  PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         editor = prefs.edit();
@@ -74,8 +87,58 @@ public class MainActivity extends AppCompatActivity {
         publisherView = findViewById(R.id.publisherView);
         descriptionView = findViewById(R.id.descriptionView);
         authorView = findViewById(R.id.authorView);
-        urlView = findViewById(R.id.urlView);
         imageView = findViewById(R.id.imageView);
+        scrollView = findViewById(R.id.scrollView);
+        infoView = findViewById(R.id.infoView);
+        totalLayout = findViewById(R.id.totalLayout);
+        buttonLayout = findViewById(R.id.buttonLayout);
+
+        //画面サイズ取得
+        Display display = getWindowManager().getDefaultDisplay();
+        Point p = new Point();
+        display.getSize(p);
+        int height = p.y;
+        int width = p.x;
+
+        ViewGroup.LayoutParams scrollParams;
+        ViewGroup.LayoutParams urlParams;
+        ViewGroup.LayoutParams imageParams;
+        ViewGroup.LayoutParams infoParams;
+        ViewGroup.LayoutParams totalParams;
+        ViewGroup.LayoutParams buttonParams;
+
+        scrollParams = scrollView.getLayoutParams();
+        imageParams = imageView.getLayoutParams();
+        infoParams =  infoView.getLayoutParams();
+        totalParams = totalLayout.getLayoutParams();
+        buttonParams = buttonLayout.getLayoutParams();
+
+        ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams)scrollParams;
+        ViewGroup.MarginLayoutParams imagelp = (ViewGroup.MarginLayoutParams)imageParams;
+        ViewGroup.MarginLayoutParams infolp = (ViewGroup.MarginLayoutParams)infoParams;
+        ViewGroup.MarginLayoutParams totallp = (ViewGroup.MarginLayoutParams)totalParams;
+        ViewGroup.MarginLayoutParams buttonlp = (ViewGroup.MarginLayoutParams)buttonParams;
+
+        //高さを決める
+        totalParams.height = (int)(height * 1 / 5);
+        imageParams.height = (int)(height * 1 / 5);
+        infoParams.height = (int)(height * 1 / 5);
+        scrollParams.height = (height -
+                                (30 + mlp.bottomMargin +
+                                (totalParams.height + totallp.topMargin + totallp.bottomMargin) +
+                                (buttonParams.height + buttonlp.topMargin + buttonlp.bottomMargin)));
+
+        //説明文のマージン
+        infolp.setMargins(10, infolp.topMargin, mlp.rightMargin,mlp.bottomMargin);
+        mlp.setMargins(mlp.leftMargin, 30, mlp.rightMargin,0);
+
+        infoView.setLayoutParams(infolp);
+        scrollView.setLayoutParams(mlp);
+
+        //幅を決める
+        totalParams.width = (int)(width * 8 / 10);
+        scrollParams.width = (int)(width * 8 / 10);
+
 
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -156,14 +219,13 @@ public class MainActivity extends AppCompatActivity {
                                 String.valueOf(authorArray.get(0));
                             }
                             // サーバからURL文字列を取得し、URLに変換
+                            String image_URL = "";
                             if(bookInfo.optJSONObject("imageLinks")!= null) {
-                                String image_URL = bookInfo.optJSONObject("imageLinks").optString("thumbnail");
-                                setImage(image_URL);
+                                image_URL = bookInfo.optJSONObject("imageLinks").optString("thumbnail");
                             }
 
                             //google Books URL
                             String google_URL = saleInfo.optString("buyLink");
-                            urlView.setAutoLinkMask(Linkify.WEB_URLS);
 
                             //SharedPreference
                             editor.putString("title", title);
@@ -172,20 +234,16 @@ public class MainActivity extends AppCompatActivity {
                             editor.putString("author", author);
                             editor.putString("description", description);
                             editor.putString("google_URL", google_URL);
+                            editor.putString("image_URL", image_URL);
                             editor.commit();
 
-
+                            setInfo();
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
 
                     }
                 }.execute();
-
-                Calendar cal = Calendar.getInstance();
-                long now = cal.getTimeInMillis();
-                long long_time = now - prefs.getLong("push", 0L);
-
             }
         });
     }
@@ -211,13 +269,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onStart() {
         super.onStart();
         canPushButton();
-        // Glideを設定
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         canPushButton();
+        setInfo();
     }
 
     public void canPushButton() {
@@ -226,7 +284,7 @@ public class MainActivity extends AppCompatActivity {
         int push = (int)prefs.getLong("push", 0L);
         long long_time = now - prefs.getLong("push", 0L);
 
-        new CountDownTimer(60 * 1000 - long_time, 1000) {
+        new CountDownTimer(6 * 1000 - long_time, 1000) {
 
             public void onTick(long millisUntilFinished) {
                 long secondInFuture = millisUntilFinished / 1000;
@@ -234,36 +292,41 @@ public class MainActivity extends AppCompatActivity {
                 long minute = (secondInFuture - 3600 * hour) / 60;
                 long second = secondInFuture - 3600 * hour - 60 * minute;
                 button.setText(String.format("%02d", hour) + ":" + String.format("%02d", minute) + ":" + String.format("%02d", second));
-                button.setEnabled(false);
+                //button.setEnabled(false);
             }
 
             public void onFinish() {
-                button.setText("done!");
+                button.setText("新しい本を探す");
                 button.setEnabled(true);
             }
         }.start();
     }
 
     public void setInfo() {
-        String title = prefs.getString("title", "タイトル");
-        String publishedDate = prefs.getString("publishedDate", "出版年月日");
-        String publisher = prefs.getString("publisher", "出版社");
-        String author = prefs.getString("author", "著者");
-        String description = prefs.getString("description", "本の紹介文が表示されます。※紹介文がないため表示されない場合もあります。");
+        String title = prefs.getString("title", "・タイトル");
+        String publishedDate = prefs.getString("publishedDate", "・出版年月日");
+        String publisher = prefs.getString("publisher", "・出版社");
+        String author = prefs.getString("author", "・著者");
+        String description = prefs.getString("description", "本の紹介文が表示されます。" +
+                                                                        "\n"+ "※紹介文がないため表示されない場合もあります。" +
+                                                                        "\n"+ "※新しい本を探す場合は、下のボタンを押してください。（1日1回まで）");
         String google_URL = prefs.getString("google_URL", "");
+        Log.d("URL", google_URL);
 
         titleView.setText(title);
         dateView.setText(publishedDate);
         publisherView.setText(publisher);
         authorView.setText(author);
         descriptionView.setText(description);
-        urlView.setText(google_URL);
+        setImage();
     }
 
-
-    public void setImage(String image_URL) {
+    public void setImage() {
+        String image_str = prefs.getString("image_URL", "noImage").replace("http", "https");
+        Uri image_URL = Uri.parse(image_str);
         Picasso.get().
-                load(image_URL.replace("http", "https")).
+                load(image_URL).
+                error(ResourcesCompat.getDrawable(getResources(), R.drawable.default_book, null)).
                 into(imageView);
     }
 
