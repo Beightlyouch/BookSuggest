@@ -2,7 +2,6 @@ package com.beightlyouch.booksuggest;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.res.ResourcesCompat;
-
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlarmManager;
@@ -12,6 +11,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Point;
@@ -23,6 +23,8 @@ import android.preference.PreferenceManager;
 import android.text.util.Linkify;
 import android.util.Log;
 import android.view.Display;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -46,11 +48,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Array;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Map;
 import java.util.Random;
 
 public class MainActivity extends AppCompatActivity {
@@ -60,6 +66,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static SharedPreferences prefs;
     private static SharedPreferences.Editor editor;
+
+    private MyAsynk asynk;
 
     //ボタンなど
     Button button;
@@ -88,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         setTitle("新しい本と出会いましょう");
 
         prefs =  PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -162,24 +171,58 @@ public class MainActivity extends AppCompatActivity {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                editor.putBoolean("boolean", true);
                 Calendar cl = Calendar.getInstance();
                 editor.putLong("push", cl.getTimeInMillis());
                 editor.commit();
-                canPushButton();
 
                 progressBar.setVisibility(View.VISIBLE);
-                MyAsynk asynk = new MyAsynk(titleView, dateView, publisherView, authorView, urlView, descriptionView, imageView, activity, progressBar);
+                button.setEnabled(false);
+                button.setText("探しています...");
+                asynk = new MyAsynk(button, titleView, dateView, publisherView,
+                        authorView, urlView, descriptionView, imageView, activity, progressBar);
                 asynk.execute();
             }
         });
     }
 
+    // メニューをActivity上に設置する
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.settings, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    //設定ボタンが押されたとき
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.settings:
+                // 設定ボタン押下処理
+                Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+                startActivity(intent);
+                break;
+            default:
+                break;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+
 
     public static String getRandomGenre() {
-        Random rand = new Random();
-        int num = rand.nextInt(BookCenter.genre.length);
-        return BookCenter.genre[num];
+        String[] genres = customBookCenter();
+        String randomGenre;
+        for (String str : genres) {
+            Log.d("ジャンル", str);
+        }
+        if (genres.length == 0) {
+            randomGenre = "001015";
+        } else {
+            Random rand = new Random();
+            int num = rand.nextInt(genres.length);
+            randomGenre = genres[num];
+        }
+        return randomGenre;
     }
 
     public static int getRandomPage() {
@@ -191,16 +234,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        canPushButton();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        canPushButton();
         setInfo();
+        button.setText("新しい本を探す");
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+    }
+
+    /*
     public void canPushButton() {
         Calendar cl = Calendar.getInstance();
         long now = cl.getTimeInMillis();
@@ -224,10 +272,12 @@ public class MainActivity extends AppCompatActivity {
             }
         }.start();
     }
+     */
 
-    //staticにしてから使えてない
+    //AsynkTask内では使えてない　& onResumeでは使ってる（いずれ直す）
     public void setInfo() {
-        String description = prefs.getString("itemCaption", "紹介文は登録されていません。");
+        String description = prefs.getString("itemCaption", "・ 本の紹介/あらすじが表示されます（※登録されている場合）。" +
+                "\n" +"\n" + "・ 本を探すには、ボタンを押してください。");
         String title = prefs.getString("title", "・タイトル");
         String publishedDate = prefs.getString("salesDate", "・出版年月日");
         String publisher = prefs.getString("publisherName", "・出版社");
@@ -254,10 +304,41 @@ public class MainActivity extends AppCompatActivity {
                 into(imageView);
     }
 
+    public static String[] customBookCenter() {
+        String[] custom_genre = BookCenter.getGenre();
+        ArrayList<String> custom_genre_list = new ArrayList<String>(Arrays.asList(custom_genre));
+        ArrayList<String> toRemove = new ArrayList<String>();
+        Map<String, ?> keys = prefs.getAll();
+        //entrySet -> Key, Valueのセットのセット
+        for(Map.Entry<String,?> entry : keys.entrySet()){
+            //このへんごちゃごちゃしてる
+            if(entry.getValue().toString() == "false") {  //???
+                Log.d("genret", entry.getKey());
+                //拡張for文： iterator使いながら削除するとConcurrentModificartionError
+                String[] key_split = entry.getKey().split(",");
+                for(String genre: custom_genre_list) {
+                    for(String key_split_str: key_split) {
+                        Log.d("ループ：", genre + " and " + key_split_str);
+                        if (genre.matches(key_split_str + "[0-9]?[0-9]?[0-9]?")) {
+                            //NG: custom_genre_list.remove();
+                            toRemove.add(genre);
+                        }
+                    }
+                }
+            }
+        }
+        custom_genre_list.removeAll(toRemove);
+        return custom_genre_list.toArray(new String[custom_genre_list.size()]);
+    }
+
     static class MyAsynk extends AsyncTask<String, Void, String> {
         int count = 0;
+        int pageCount;
+        String genre;
+
 
         //なんだこれ？　Acitivityとともに消えるとでもいうのか？ GC
+        private final WeakReference<Button> buttonWeakReference;
         private final WeakReference<TextView> titleViewReference;
         private final WeakReference<TextView> dateViewReference;
         private final WeakReference<TextView> publisherViewReference;
@@ -268,9 +349,11 @@ public class MainActivity extends AppCompatActivity {
         private final WeakReference<Activity> activityWeakReference;
         private final WeakReference<ProgressBar> progressBarWeakReference;
 
-        public MyAsynk(TextView titleView, TextView dateView, TextView publisherView,
+        public MyAsynk(Button button,
+                       TextView titleView, TextView dateView, TextView publisherView,
                        TextView authorView, TextView urlView, TextView descriptionView,
                        ImageView imageView, Activity activity, ProgressBar progressBar) {
+            buttonWeakReference = new WeakReference<Button>(button);
             titleViewReference = new WeakReference<TextView>(titleView);
             dateViewReference = new WeakReference<TextView>(dateView);
             publisherViewReference = new WeakReference<TextView>(publisherView);
@@ -285,28 +368,31 @@ public class MainActivity extends AppCompatActivity {
         //ボタンを押した時に非同期処理を開始します
         @Override
         protected String doInBackground(String... params) {
+            //鬼のような冗長日曜祝日休み
             StringBuilder result = new StringBuilder();
             while (count == 0) {
+                Log.d("Activity", activityWeakReference.get().toString());
                 //while文
                 //result.clear的な
                 result.setLength(0);
                 try {
-                    Thread.sleep(1500);
+                    Thread.sleep(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
+
                 Uri.Builder uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
                 uriBuilder.scheme("https");
                 uriBuilder.authority(API_URL_PREFIX); //ホスト?
                 uriBuilder.path("/services/api/BooksBook/Search/20170404");
+                genre = getRandomGenre();
+
                 uriBuilder.appendQueryParameter("format", "json").
-                        appendQueryParameter("booksGenreId", getRandomGenre()).
-                        appendQueryParameter("page", String.valueOf(getRandomPage())).
-                        //環境変数?
+                        appendQueryParameter("booksGenreId", genre).
                         appendQueryParameter("applicationId", "1073644741330296219");
 
-                final String uriStr = uriBuilder.build().toString(); //URIを作成して文字列に
-                Log.d("url", uriStr);
+                String uriStr = uriBuilder.build().toString(); //URIを作成して文字列に
+
                 try {
                     URL url = new URL(uriStr); //文字列からURLに変換
                     HttpURLConnection con = null; //HTTP接続の設定を入力していく
@@ -322,7 +408,6 @@ public class MainActivity extends AppCompatActivity {
                     String line = null;
                     while ((line = bufReader.readLine()) != null) {
                         result.append(line);
-                        Log.d("ここここここは？", line);
                     }
                     bufReader.close();
                     inReader.close();
@@ -330,10 +415,7 @@ public class MainActivity extends AppCompatActivity {
 
                     JSONObject json = new JSONObject(result.toString());
                     count = Integer.parseInt(json.optString("count"));
-
-                    Log.d("errorは?", json.optString("error") + "aaaaa");
-                    Log.d("resultは？", result.toString());
-                    Log.d("countは？", String.valueOf(count));
+                    pageCount = Integer.parseInt(json.optString("pageCount"));
                 } catch (Exception e) { //エラーの時に呼び出される
                     Log.e("ERROR", e.toString());
                     //配列から内容を出力する
@@ -341,7 +423,59 @@ public class MainActivity extends AppCompatActivity {
                         System.out.println(a);
                     }
                 }
-            }
+
+                uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
+                uriBuilder.scheme("https");
+                uriBuilder.authority(API_URL_PREFIX); //ホスト?
+                uriBuilder.path("/services/api/BooksBook/Search/20170404");
+
+                Random rand = new Random();
+                int page;
+                if(pageCount == 0) {
+                    page = 1; //.....あとでなおす
+                } else {
+                    page = rand.nextInt(pageCount) + 1;
+                }
+
+                uriBuilder.appendQueryParameter("format", "json").
+                        appendQueryParameter("booksGenreId", genre).
+                        appendQueryParameter("page", String.valueOf(page)).
+                        appendQueryParameter("applicationId", "1073644741330296219");
+
+                String precise_uriStr = uriBuilder.build().toString();
+                Log.d("precise_uriStr", precise_uriStr);
+
+                result.setLength(0);
+
+                try {
+                    URL url = new URL(precise_uriStr); //文字列からURLに変換
+                    HttpURLConnection con = null; //HTTP接続の設定を入力していく
+                    con = (HttpURLConnection) url.openConnection();
+                    con.setRequestMethod("GET");
+                    con.setDoInput(true); //?
+                    con.connect(); //HTTP接続
+
+                    final InputStream in = con.getInputStream(); //情報を受け取り表示するための形式に
+                    final InputStreamReader inReader = new InputStreamReader(in);
+                    final BufferedReader bufReader = new BufferedReader(inReader);
+
+                    String line = null;
+                    while ((line = bufReader.readLine()) != null) {
+                        result.append(line);
+                    }
+                    bufReader.close();
+                    inReader.close();
+                    in.close();
+
+                } catch (Exception e) { //エラーの時に呼び出される
+                    Log.e("ERROR", e.toString());
+                    //配列から内容を出力する
+                    for(StackTraceElement a : e.getStackTrace()){
+                        System.out.println(a);
+                    }
+                }
+
+           }
             return result.toString(); //onPostExecuteへreturn
         }
 
@@ -357,7 +491,7 @@ public class MainActivity extends AppCompatActivity {
                 String hits_str = json.getString("hits");
                 Random rand = new Random();
                 int hits = rand.nextInt(Integer.parseInt(hits_str));
-                Log.d("hits", String.valueOf(hits));
+                Log.d("hits", String.valueOf(hits)+ "/" + hits_str);
                 JSONObject bookInfo = itemsArray.getJSONObject(hits).getJSONObject("Item");
 
                 //なげえ
@@ -389,7 +523,7 @@ public class MainActivity extends AppCompatActivity {
                 editor.putString("image_URL", image_URL_result);
                 editor.commit();
 
-                String description = prefs.getString("itemCaption", "紹介文は登録されていません。");
+                String description = prefs.getString("itemCaption", "");
                 Log.d("count", String.valueOf(count));
 
                 String title = prefs.getString("title", "・タイトル");
@@ -407,28 +541,40 @@ public class MainActivity extends AppCompatActivity {
                     TextView urlView = urlViewReference.get();
                     ImageView imageView = imageViewWeakReference.get();
                     Activity activity = activityWeakReference.get();
+                    Button button = buttonWeakReference.get();
                 //}
 
-                titleView.setText(title);
-                dateView.setText(publishedDate);
-                publisherView.setText(publisher);
-                authorView.setText(author);
-                urlView.setText(URL);
-                descriptionView.setText(description);
-                Linkify.addLinks(urlView, Linkify.ALL);
+                if(activity != null) {
+                    titleView.setText(title);
+                    dateView.setText(publishedDate);
+                    publisherView.setText(publisher);
+                    authorView.setText(author);
+                    urlView.setText(URL);
+                    descriptionView.setText(description);
+                    Linkify.addLinks(urlView, Linkify.ALL);
 
-                progressBar.setVisibility(View.GONE);
+                    button.setEnabled(true);
+                    button.setText("新しい本を探す");
+                    progressBar.setVisibility(View.GONE);
 
 
-                String image_str = prefs.getString("image_URL", "");
-                Uri image_URL = Uri.parse(image_str);
-                Picasso.get().
-                        load(image_URL).
-                        error(ResourcesCompat.getDrawable(activity.getResources(), R.drawable.default_book, null)).
-                        into(imageView);
+                    String image_str = prefs.getString("image_URL", "");
+                    Uri image_URL = Uri.parse(image_str);
+                    Picasso.get().
+                            load(image_URL).
+                            error(ResourcesCompat.getDrawable(activity.getResources(), R.drawable.default_book, null)).
+                            into(imageView);
+                }else {
+                    Log.d("Activityっこ", "うんこ");
+                }
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+        }
+
+        @Override
+        protected void onCancelled() {
+            Log.d("キャンセルされ店の？", "Yes");
         }
     }
 }

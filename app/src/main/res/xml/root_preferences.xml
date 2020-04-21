@@ -1,0 +1,98 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+
+    <PreferenceCategory android:title="特別なジャンルのON/OFF">
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001001,001019011"
+            android:title="漫画（コミック）" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001013,001019014"
+            android:title="写真集・タレント" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001017,001019012"
+            android:title="ライトノベル" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001021"
+            android:title="BL" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001018"
+            android:title="楽譜" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="その他のジャンルのON/OFF">
+
+        <CheckBoxPreference
+            android:key="001002,001019005,001020005"
+            android:title="語学・学習参考書"
+            android:defaultValue="true"/>
+
+        <CheckBoxPreference
+            android:key="001003,001020004"
+            android:title="絵本・児童書・図鑑"
+            android:defaultValue="true"/>
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001004,001019001,001020001"
+            android:title="小説・エッセイ" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001005,001020009,001019009"
+            android:title="パソコン・システム開発" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001006,001019008,001020008"
+            android:title="ビジネス・経済・就職" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001007,001019006,001020006"
+            android:title="旅行・留学・アウトドア" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001008,001019007,001020007"
+            android:title="人文・思想・社会" />
+
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001009,001020003,001019003"
+            android:title="ホビー・スポーツ・美術" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001010,001020002,001019002"
+            android:title="美容・暮らし・料理・健康" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001011,001019013,001020011"
+            android:title="エンタメ・ゲーム" />
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001012,001020010,001019010"
+            android:title="科学・医学・技術" />
+
+
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="001016"
+            android:title="資格・検定" />
+
+    </PreferenceCategory>
+</PreferenceScreen>
