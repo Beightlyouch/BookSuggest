@@ -61,12 +61,11 @@ import java.util.Random;
 
 public class MainActivity extends AppCompatActivity {
 
-    private AlarmManager alarmMgr;
-    private PendingIntent alarmIntent;
-
+    //SharedPreferences
     private static SharedPreferences prefs;
     private static SharedPreferences.Editor editor;
 
+    //ASyncTask
     private MyAsynk asynk;
 
     //ボタンなど
@@ -86,8 +85,7 @@ public class MainActivity extends AppCompatActivity {
     //これいいんかな？
     Activity activity = this;
 
-    ProgressDialog progressDialog;
-
+    //API_URL
     private static final String API_URL_PREFIX = "app.rakuten.co.jp";
     //private final String API_URL_PREFIX = "www.googleapis.com";
 
@@ -96,7 +94,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         setTitle("新しい本と出会いましょう");
 
         prefs =  PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -115,6 +112,50 @@ public class MainActivity extends AppCompatActivity {
         totalLayout = findViewById(R.id.totalLayout);
         progressBar = findViewById(R.id.progressBar);
 
+        //幅とかスペースとか調整
+        setLayout();
+
+        button.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //プログレスバー、ボタン
+                progressBar.setVisibility(View.VISIBLE);
+                button.setEnabled(false);
+                button.setText("探しています...");
+
+                //AsyncTask
+                asynk = new MyAsynk(button, titleView, dateView, publisherView,
+                        authorView, urlView, descriptionView, imageView, activity, progressBar);
+                asynk.execute();
+            }
+        });
+    }
+
+    // メニューをActivity上に設置する
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.settings, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    //設定ボタンが押されたとき
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.settings:
+                // 設定ボタン押下処理
+                Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+                startActivity(intent);
+                break;
+            default:
+                break;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    public void setLayout() {
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        //とりあえずプログレスバーを消す
         progressBar.setVisibility(View.GONE);
 
         //画面サイズ取得
@@ -150,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
         imageParams.height = (int)(height * 1 / 5);
         infoParams.height = (int)(height * 1 / 5);
         scrollParams.height = (height -
-                        ((30 + mlp.bottomMargin) +
+                ((30 + mlp.bottomMargin) +
                         (urlParams.height + ulp.topMargin + ulp.bottomMargin) +
                         (totalParams.height + totallp.topMargin + totallp.bottomMargin) +
                         (buttonParams.height + buttonlp.topMargin + buttonlp.bottomMargin))) * 2 / 3;
@@ -166,47 +207,7 @@ public class MainActivity extends AppCompatActivity {
         urlParams.width = (int)(width * 8 / 10);
         totalParams.width = (int)(width * 8 / 10);
         scrollParams.width = (int)(width * 8 / 10);
-
-
-        button.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Calendar cl = Calendar.getInstance();
-                editor.putLong("push", cl.getTimeInMillis());
-                editor.commit();
-
-                progressBar.setVisibility(View.VISIBLE);
-                button.setEnabled(false);
-                button.setText("探しています...");
-                asynk = new MyAsynk(button, titleView, dateView, publisherView,
-                        authorView, urlView, descriptionView, imageView, activity, progressBar);
-                asynk.execute();
-            }
-        });
     }
-
-    // メニューをActivity上に設置する
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.settings, menu);
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    //設定ボタンが押されたとき
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.settings:
-                // 設定ボタン押下処理
-                Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-                startActivity(intent);
-                break;
-            default:
-                break;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
 
 
     public static String getRandomGenre() {
@@ -225,11 +226,13 @@ public class MainActivity extends AppCompatActivity {
         return randomGenre;
     }
 
+    /*
     public static int getRandomPage() {
         Random rand = new Random();
         int page = rand.nextInt(100) + 1;
         return page;
     }
+    */
 
     @Override
     protected void onStart() {
@@ -274,7 +277,8 @@ public class MainActivity extends AppCompatActivity {
     }
      */
 
-    //AsynkTask内では使えてない　& onResumeでは使ってる（いずれ直す）
+    //AsynkTask内では使えてない
+    //onResumeでは使ってる（いずれ直す）
     public void setInfo() {
         String description = prefs.getString("itemCaption", "・ 本の紹介/あらすじが表示されます（※登録されている場合）。" +
                 "\n" +"\n" + "・ 本を探すには、ボタンを押してください。");
@@ -294,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
         setImage();
     }
 
-    //staticにしてから使えてない?
+    //staticにしてから使えてない
     public void setImage() {
         String image_str = prefs.getString("image_URL", "");
         Uri image_URL = Uri.parse(image_str);
@@ -304,6 +308,8 @@ public class MainActivity extends AppCompatActivity {
                 into(imageView);
     }
 
+    //現状：　返すジャンル  ＝　全ジャンルから - 選択されていないジャンル
+    //こうするか？:　返すジャンル　＝　選択されたジャンル.split
     public static String[] customBookCenter() {
         String[] custom_genre = BookCenter.getGenre();
         ArrayList<String> custom_genre_list = new ArrayList<String>(Arrays.asList(custom_genre));
@@ -327,10 +333,12 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+        //選択されなかったジャンルを消す
         custom_genre_list.removeAll(toRemove);
         return custom_genre_list.toArray(new String[custom_genre_list.size()]);
     }
 
+    //コンストラクタ
     static class MyAsynk extends AsyncTask<String, Void, String> {
         int count = 0;
         int pageCount;
@@ -372,15 +380,18 @@ public class MainActivity extends AppCompatActivity {
             StringBuilder result = new StringBuilder();
             while (count == 0) {
                 Log.d("Activity", activityWeakReference.get().toString());
-                //while文
+
                 //result.clear的な
                 result.setLength(0);
+
+                //500ミリ秒待つ
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
 
+                //URL作成
                 Uri.Builder uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
                 uriBuilder.scheme("https");
                 uriBuilder.authority(API_URL_PREFIX); //ホスト?
@@ -393,6 +404,7 @@ public class MainActivity extends AppCompatActivity {
 
                 String uriStr = uriBuilder.build().toString(); //URIを作成して文字列に
 
+                //APIからresult取得, pageCountを取得
                 try {
                     URL url = new URL(uriStr); //文字列からURLに変換
                     HttpURLConnection con = null; //HTTP接続の設定を入力していく
@@ -429,13 +441,9 @@ public class MainActivity extends AppCompatActivity {
                 uriBuilder.authority(API_URL_PREFIX); //ホスト?
                 uriBuilder.path("/services/api/BooksBook/Search/20170404");
 
+                //ランダムページ
                 Random rand = new Random();
-                int page;
-                if(pageCount == 0) {
-                    page = 1; //.....あとでなおす
-                } else {
-                    page = rand.nextInt(pageCount) + 1;
-                }
+                int page = rand.nextInt(pageCount) + 1;
 
                 uriBuilder.appendQueryParameter("format", "json").
                         appendQueryParameter("booksGenreId", genre).
