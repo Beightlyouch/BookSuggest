@@ -341,7 +341,7 @@ public class MainActivity extends AppCompatActivity {
     //コンストラクタ
     static class MyAsynk extends AsyncTask<String, Void, String> {
         int count = 0;
-        int pageCount;
+        int pageCount = 0;
         String genre;
 
 
@@ -381,9 +381,6 @@ public class MainActivity extends AppCompatActivity {
             while (count == 0) {
                 Log.d("Activity", activityWeakReference.get().toString());
 
-                //result.clear的な
-                result.setLength(0);
-
                 //500ミリ秒待つ
                 try {
                     Thread.sleep(500);
@@ -391,98 +388,21 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-                //URL作成
-                Uri.Builder uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
-                uriBuilder.scheme("https");
-                uriBuilder.authority(API_URL_PREFIX); //ホスト?
-                uriBuilder.path("/services/api/BooksBook/Search/20170404");
-                genre = getRandomGenre();
+                //result取得
+                result = getInfoFromAPI();
 
-                uriBuilder.appendQueryParameter("format", "json").
-                        appendQueryParameter("booksGenreId", genre).
-                        appendQueryParameter("applicationId", "1073644741330296219");
-
-                String uriStr = uriBuilder.build().toString(); //URIを作成して文字列に
-
-                //APIからresult取得, pageCountを取得
+                //pageCount取得
+                JSONObject json = null;
                 try {
-                    URL url = new URL(uriStr); //文字列からURLに変換
-                    HttpURLConnection con = null; //HTTP接続の設定を入力していく
-                    con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("GET");
-                    con.setDoInput(true); //?
-                    con.connect(); //HTTP接続
-
-                    final InputStream in = con.getInputStream(); //情報を受け取り表示するための形式に
-                    final InputStreamReader inReader = new InputStreamReader(in);
-                    final BufferedReader bufReader = new BufferedReader(inReader);
-
-                    String line = null;
-                    while ((line = bufReader.readLine()) != null) {
-                        result.append(line);
-                    }
-                    bufReader.close();
-                    inReader.close();
-                    in.close();
-
-                    JSONObject json = new JSONObject(result.toString());
-                    count = Integer.parseInt(json.optString("count"));
-                    pageCount = Integer.parseInt(json.optString("pageCount"));
-                } catch (Exception e) { //エラーの時に呼び出される
-                    Log.e("ERROR", e.toString());
-                    //配列から内容を出力する
-                    for(StackTraceElement a : e.getStackTrace()){
-                        System.out.println(a);
-                    }
+                    json = new JSONObject(result.toString());
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
+                count = Integer.parseInt(json.optString("count"));
+                pageCount = Integer.parseInt(json.optString("pageCount"));
 
-                uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
-                uriBuilder.scheme("https");
-                uriBuilder.authority(API_URL_PREFIX); //ホスト?
-                uriBuilder.path("/services/api/BooksBook/Search/20170404");
-
-                //ランダムページ
-                Random rand = new Random();
-                int page = rand.nextInt(pageCount) + 1;
-
-                uriBuilder.appendQueryParameter("format", "json").
-                        appendQueryParameter("booksGenreId", genre).
-                        appendQueryParameter("page", String.valueOf(page)).
-                        appendQueryParameter("applicationId", "1073644741330296219");
-
-                String precise_uriStr = uriBuilder.build().toString();
-                Log.d("precise_uriStr", precise_uriStr);
-
-                result.setLength(0);
-
-                try {
-                    URL url = new URL(precise_uriStr); //文字列からURLに変換
-                    HttpURLConnection con = null; //HTTP接続の設定を入力していく
-                    con = (HttpURLConnection) url.openConnection();
-                    con.setRequestMethod("GET");
-                    con.setDoInput(true); //?
-                    con.connect(); //HTTP接続
-
-                    final InputStream in = con.getInputStream(); //情報を受け取り表示するための形式に
-                    final InputStreamReader inReader = new InputStreamReader(in);
-                    final BufferedReader bufReader = new BufferedReader(inReader);
-
-                    String line = null;
-                    while ((line = bufReader.readLine()) != null) {
-                        result.append(line);
-                    }
-                    bufReader.close();
-                    inReader.close();
-                    in.close();
-
-                } catch (Exception e) { //エラーの時に呼び出される
-                    Log.e("ERROR", e.toString());
-                    //配列から内容を出力する
-                    for(StackTraceElement a : e.getStackTrace()){
-                        System.out.println(a);
-                    }
-                }
-
+                //result取得
+                result = getInfoFromAPI();
            }
             return result.toString(); //onPostExecuteへreturn
         }
@@ -578,6 +498,77 @@ public class MainActivity extends AppCompatActivity {
             } catch (JSONException e) {
                 e.printStackTrace();
             }
+        }
+
+        public StringBuilder getInfoFromAPI() {
+            String uri_str;
+            StringBuilder result = new StringBuilder();
+            result.setLength(0);
+
+            if(pageCount == 0) {
+                //1回目
+                Uri.Builder uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
+                uriBuilder.scheme("https");
+                uriBuilder.authority(API_URL_PREFIX); //ホスト?
+                uriBuilder.path("/services/api/BooksBook/Search/20170404");
+                genre = getRandomGenre();
+
+                uriBuilder.appendQueryParameter("format", "json").
+                        appendQueryParameter("booksGenreId", genre).
+                        appendQueryParameter("applicationId", "1073644741330296219");
+
+                uri_str = uriBuilder.build().toString(); //URIを作成して文字列に
+                Log.d("uri_str", uri_str);
+
+            } else {
+                //2回目
+                Uri.Builder uriBuilder = new Uri.Builder(); //Uri.Builderで要素を入力
+                uriBuilder.scheme("https");
+                uriBuilder.authority(API_URL_PREFIX); //ホスト?
+                uriBuilder.path("/services/api/BooksBook/Search/20170404");
+
+                //ランダムページ
+                Random rand = new Random();
+                int page = rand.nextInt(pageCount) + 1;
+                Log.d("page_str", page + "/" + pageCount);
+
+                uriBuilder.appendQueryParameter("format", "json").
+                        appendQueryParameter("booksGenreId", genre).
+                        appendQueryParameter("page", String.valueOf(page)).
+                        appendQueryParameter("applicationId", "1073644741330296219");
+
+                uri_str = uriBuilder.build().toString();
+                Log.d("uri_str2", uri_str);
+            }
+
+            try {
+                URL url = new URL(uri_str); //文字列からURLに変換
+                HttpURLConnection con = null; //HTTP接続の設定を入力していく
+                con = (HttpURLConnection) url.openConnection();
+                con.setRequestMethod("GET");
+                con.setDoInput(true); //?
+                con.connect(); //HTTP接続
+
+                final InputStream in = con.getInputStream(); //情報を受け取り表示するための形式に
+                final InputStreamReader inReader = new InputStreamReader(in);
+                final BufferedReader bufReader = new BufferedReader(inReader);
+
+                String line = null;
+                while ((line = bufReader.readLine()) != null) {
+                    result.append(line);
+                }
+                bufReader.close();
+                inReader.close();
+                in.close();
+
+            } catch (Exception e) { //エラーの時に呼び出される
+                Log.e("ERROR", e.toString());
+                //配列から内容を出力する
+                for(StackTraceElement a : e.getStackTrace()){
+                    System.out.println(a);
+                }
+            }
+            return result;
         }
 
         @Override
