@@ -500,7 +500,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        public StringBuilder getInfoFromAPI() {
+        private StringBuilder getInfoFromAPI() {
             String uri_str;
             StringBuilder result = new StringBuilder();
             result.setLength(0);
